@@ -9,6 +9,7 @@ use strict;
 use Data::Dumper;
 use Data::Serializer;
 use IO::File;
+use Unique;
 #
 my $INFILE = shift;
 my $OUTFILE = shift;
@@ -22,33 +23,13 @@ if (defined $ifh) {
   my $idata = $obj->retrieve($ifh);
   print Data::Dumper->Dump([$idata]);
   my $odata = stat_data($idata);
-  print Data::Dumper->Dump([$odata]);
-  my $ofh = IO::File->new($OUTFILE, "w");
-  if (defined $ifh) {
-    $obj->store($odata, $ofh);
-    undef $ofh;
-  }
-  undef $ifh;
-}
-#
-sub stat_data {
-  my $idata = shift;
-  my $odata;
-  while (my ($k, $v) = each $idata) {
-    if (@$v > 1) {
-      print "processing ",$k, "\n";
-      foreach my $file (@$v) {
-        print "FILE is ", $file,"\n";
-        my $inode = (stat($file))[1];
-        print "INODE - $inode\n";
- 
-        if (defined $odata->{$k}->{$inode}) {
-          push @{$odata->{$k}->{$inode}}, $file;
-        } else {
-          $odata->{$k}->{$inode} = [ $file ];
-        }
-      }
+  if (defined $odata) {
+    print Data::Dumper->Dump([$odata]);
+    my $ofh = IO::File->new($OUTFILE, "w");
+    if (defined $ifh) {
+      $obj->store($odata, $ofh);
+      undef $ofh;
     }
   }
-  return $odata;
+  undef $ifh;
 }
