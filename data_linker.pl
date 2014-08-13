@@ -25,17 +25,15 @@ if (defined $ifh) {
 sub link_files {
   my $idata = shift;
   my $odata;
-  while (my ($k, $v) = each $idata) {
-    while (my ($csum, $files) = each $v) {
-      if (@$files == 1) {
-        print "Nothing to do for ",$files->[0],"\n";
-      } else {
-        my $root = $files->[0];
-        for my $idx (1 .. $#$files) {
-          my $file = $files->[$idx];
-          print "LINKING ",$file," to $root with checksum $csum\n";
-#          unlink $file and link $root, $file;
-        }
+  while (my ($csum, $files) = each $idata) {
+    if (@$files == 1) {
+      print "Nothing to do for ",$files->[0],"\n";
+    } else {
+      my $root = $files->[0];
+      for my $idx (1 .. $#$files) {
+        my $file = $files->[$idx];
+        print "LINKING ",$file," to $root with checksum $csum\n";
+        unlink $file and link $root, $file;
       }
     }
   }

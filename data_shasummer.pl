@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 # 
-# reads a serialised hash file - size, inode, [filenames]
-# writes a serialised hash file - size, csum, [filenames]
+# reads a serialised hash file - size, md5sum, [filenames]
+# writes a serialised hash file - size, shasum, [filenames]
 #
 use strict;
 #
@@ -22,11 +22,13 @@ if (defined $ifh) {
   my $data = $obj->retrieve($ifh);
   print Data::Dumper->Dump([$data]);
   my $csum_data = shasum_data($data);
-  print Data::Dumper->Dump([$csum_data]);
-  my $ofh = IO::File->new($OUTFILE, "w");
-  if (defined $ifh) {
-    $obj->store($csum_data, $ofh);
-    undef $ofh;
+  if (defined $csum_data) {
+    print Data::Dumper->Dump([$csum_data]);
+    my $ofh = IO::File->new($OUTFILE, "w");
+    if (defined $ifh) {
+      $obj->store($csum_data, $ofh);
+      undef $ofh;
+    }
   }
   undef $ifh;
 }
@@ -34,19 +36,20 @@ if (defined $ifh) {
 sub shasum_data {
   my $idata = shift;
   my $odata;
-  while (my ($k, $v) = each $idata) {
-    while (my ($inode, $files) = each $v) {
-      my $file = $files->[0];
-      open (my $fh, '<', $file) or die "Can't open '$file': $!";
-      binmode ($fh);
-      my $checksum = Digest::SHA->new(512)->addfile($fh)->hexdigest;
-      print "CHECKSUM ", $checksum,"\n";
-      close ($fh) or die "Can't close $file: $!";
+  while (my ($md5sum, $files) = each $idata) {
+    if (@$files > 1) {
+      foreach my $file (@$files) {
+        open (my $fh, '<', $file) or die "Can't open '$file': $!";
+        binmode ($fh);
+        my $checksum = Digest::SHA->new(512)->addfile($fh)->hexdigest;
+        print "FILE : ",$file," : CHECKSUM : ", $checksum,"\n";
+        close ($fh) or die "Can't close $file: $!";
 
-      if (defined $odata->{$k}->{$checksum}) {
-        push @{$odata->{$k}->{$checksum}}, $file;
-      } else {
-        $odata->{$k}->{$checksum} = [ $file ];
+        if (defined $odata->{$checksum}) {
+          push @{$odata->{$checksum}}, $file;
+        } else {
+          $odata->{$checksum} = [ $file ];
+        }
       }
     }
   }

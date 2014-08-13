@@ -35,18 +35,20 @@ sub md5sum_data {
   my $idata = shift;
   my $odata;
   while (my ($k, $v) = each $idata) {
-    while (my ($inode, $files) = each $v) {
-      my $file = $files->[0];
-      open (my $fh, '<', $file) or die "Can't open '$file': $!";
-      binmode ($fh);
-      my $checksum = Digest::MD5->new->addfile($fh)->hexdigest;
-      print "CHECKSUM ", $checksum,"\n";
-      close ($fh) or die "Can't close $file: $!";
-
-      if (defined $odata->{$k}->{$checksum}) {
-        push @{$odata->{$k}->{$checksum}}, $file;
-      } else {
-        $odata->{$k}->{$checksum} = [ $file ];
+    if ((keys %$v) > 1) {
+      while (my ($inode, $files) = each $v) {
+        my $file = $files->[0];
+        open (my $fh, '<', $file) or die "Can't open '$file': $!";
+        binmode ($fh);
+        my $checksum = Digest::MD5->new->addfile($fh)->hexdigest;
+        print "CHECKSUM ", $checksum,"\n";
+        close ($fh) or die "Can't close $file: $!";
+  
+        if (defined $odata->{$checksum}) {
+          push @{$odata->{$checksum}}, $file;
+        } else {
+          $odata->{$checksum} = [ $file ];
+        }
       }
     }
   }
