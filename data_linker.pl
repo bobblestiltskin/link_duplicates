@@ -4,21 +4,10 @@
 #
 use strict;
 #
-use Data::Dumper;
-use Data::Serializer;
-use IO::File;
-use Unique;
+use Unique qw(link_all);
 #
-my $INFILE = shift;
+my ($INFILE) = @ARGV;
 die "Need serialised hash files to process" unless $INFILE;
 #
 $| = 1;
-#
-my $ifh = IO::File->new($INFILE, "r");
-if (defined $ifh) {
-  my $obj = Data::Serializer->new();
-  my $idata = $obj->retrieve($ifh);
-  print Data::Dumper->Dump([$idata]);
-  link_files($idata);
-  undef $ifh;
-}
+Unique::link_all($INFILE);

@@ -5,30 +5,10 @@
 #
 use strict;
 #
-use Data::Dumper;
-use Data::Serializer;
-use IO::File;
-use Unique;
+use Unique qw(checksum_files md5sum_data);
 #
-my $INFILE = shift;
-my $OUTFILE = shift;
+my ($INFILE, $OUTFILE) = @ARGV;
 die "Need serialised hash files to process" unless ($INFILE and $OUTFILE);
 #
 $| = 1;
-#
-my $ifh = IO::File->new($INFILE, "r");
-if (defined $ifh) {
-  my $obj = Data::Serializer->new();
-  my $idata = $obj->retrieve($ifh);
-  print Data::Dumper->Dump([$idata]);
-  my $odata = md5sum_data($idata);
-  if (defined $odata) {
-    print Data::Dumper->Dump([$odata]);
-    my $ofh = IO::File->new($OUTFILE, "w");
-    if (defined $ifh) {
-      $obj->store($odata, $ofh);
-      undef $ofh;
-    }
-  }
-  undef $ifh;
-}
+Unique::checksum_files(\&Unique::md5sum_data, $INFILE, $OUTFILE);
