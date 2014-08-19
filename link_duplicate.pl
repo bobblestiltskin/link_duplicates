@@ -39,8 +39,10 @@ die "Bad Parameter passed to $0" unless ($getopt_result);
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose => 2) if $man;
 
+die "Need some directories to process" unless @ARGV;
 $MINSIZE = (10 ** shift) if (not defined $MINSIZE) and ($ARGV[0] =~ /^\d$/);
-die "Need a minsize and some directories to process" unless (($MINSIZE =~ /\d+/) and @ARGV);
+die "Need a minimum file size" unless defined $MINSIZE;
+die "Need a minimum file size and some directories to process" unless (($MINSIZE =~ /\d+/) and @ARGV);
 
 $| = 1;
 my $data;
@@ -90,6 +92,41 @@ sub wanted {
   }
 }
 #
+sub update_hash {
+  my ($ptr, $index, $entry) = @_;
+
+  if (defined $ptr->{$index}) {
+    push @{$ptr->{$index}}, $entry;
+  } else {
+    $ptr->{$index} = [ $entry ];
+  }
+  return $ptr;
+}
+#
+sub stat_data {
+  my $idata = shift;
+  my $verbose = shift;
+
+  my $odata;
+  if (defined $idata) {
+    while (my ($k, $v) = each $idata) {
+      if (@$v > 1) {
+        foreach my $file (@$v) {
+          my $inode = (stat($file))[1];
+          print "stat_data: file - ", $file, ", inode - $inode\n" if $verbose;
+
+          if (defined $odata->{$k}->{$inode}) {
+            push @{$odata->{$k}->{$inode}}, $file;
+          } else {
+            $odata->{$k}->{$inode} = [ $file ];
+          }
+        }
+      }
+    }
+  }
+  return $odata;
+}
+#
 sub stat_files {
 # 
 # reads a serialised hash file  - size,        [filenames]
@@ -113,23 +150,58 @@ sub stat_files {
   }
 }
 #  
-sub stat_data {
+sub checksum_file {
+  my ($file, $label, $algorithm, $verbose) = @_;
+
+  print "$label: file - ",$file if $verbose;
+  open (my $fh, '<', $file) or die "Can't open '$file': $!";
+  binmode ($fh);
+  my $checksum = $algorithm->addfile($fh)->hexdigest;
+  print ", checksum - ", $checksum,"\n" if $verbose;
+  close ($fh) or die "Can't close $file: $!";
+
+  return $checksum;
+}
+
+sub md5sum_data {
+# 
+# reads a serialised hash file  - size, inode,  [filenames]
+# writes a serialised hash file - md5sum, [filenames]
+#
   my $idata = shift;
   my $verbose = shift;
 
   my $odata;
   if (defined $idata) {
     while (my ($k, $v) = each $idata) {
-      if (@$v > 1) {
-        foreach my $file (@$v) {
-          my $inode = (stat($file))[1];
-          print "stat_data: file - ", $file, ", inode - $inode\n" if $verbose;
-   
-          if (defined $odata->{$k}->{$inode}) {
-            push @{$odata->{$k}->{$inode}}, $file;
-          } else {
-            $odata->{$k}->{$inode} = [ $file ];
-          }
+      if ((keys %$v) > 1) {
+        while (my ($inode, $files) = each $v) {
+          my $file = $files->[0]; # first file at inode
+          my $checksum = checksum_file($file, "md5sum_data", Digest::MD5->new, $verbose);
+          $odata = update_hash($odata, $checksum, $file);
+        }
+      }
+    }
+  }
+  return $odata;
+}
+#
+sub shasum_data {
+# 
+# reads a serialised hash file  - md5sum, [filenames]
+# writes a serialised hash file - shasum, [filenames]
+#
+  my $idata = shift;
+  my $verbose = shift;
+  my $shasize = shift;
+
+  my $odata;
+  if (defined $idata) {
+    while (my ($md5sum, $files) = each $idata) {
+      if (@$files > 1) {
+        foreach my $file (@$files) {
+          my $checksum = checksum_file($file, "md5sum_data", Digest::SHA->new($shasize), $verbose);
+          $odata = update_hash($odata, $checksum, $file);
         }
       }
     }
@@ -149,96 +221,16 @@ sub checksum_data {
     my $idata = $obj->retrieve($ifh);
     print "checksum_data: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
     my $odata = $function->($idata, $verbose);
+    print "checksum_data: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
     if ((defined $ofh) and (defined $odata)) {
       $obj->store($odata, $ofh);
     }
   }
 }
 #
-sub md5sum_data {
-# 
-# reads a serialised hash file  - size, inode,  [filenames]
-# writes a serialised hash file - size, md5sum, [filenames]
-#
-  my $idata = shift;
-  my $verbose = shift;
-
-  my $odata;
-  if (defined $idata) {
-    while (my ($k, $v) = each $idata) {
-      if ((keys %$v) > 1) {
-        while (my ($inode, $files) = each $v) {
-          my $file = $files->[0]; # first file at inode
-          print "md5sum_data: file - ",$file if $verbose;
-          open (my $fh, '<', $file) or die "Can't open '$file': $!";
-          binmode ($fh);
-          my $checksum = Digest::MD5->new->addfile($fh)->hexdigest;
-          print ", checksum - ", $checksum,"\n" if $verbose;
-          close ($fh) or die "Can't close $file: $!";
-    
-          if (defined $odata->{$checksum}) {
-            push @{$odata->{$checksum}}, $file;
-          } else {
-            $odata->{$checksum} = [ $file ];
-          }
-        }
-      }
-    }
-  }
-  return $odata;
-}
-#
-sub shasum_data {
-# 
-# reads a serialised hash file  - size, md5sum, [filenames]
-# writes a serialised hash file - size, shasum, [filenames]
-#
-  my $idata = shift;
-  my $verbose = shift;
-  my $shasize = shift;
-
-  my $odata;
-  if (defined $idata) {
-    while (my ($md5sum, $files) = each $idata) {
-      if (@$files > 1) {
-        foreach my $file (@$files) {
-          print "shasum_data: file - ",$file if $verbose;
-          open (my $fh, '<', $file) or die "Can't open '$file': $!";
-          binmode ($fh);
-          my $checksum = Digest::SHA->new($shasize)->addfile($fh)->hexdigest;
-          print ", checksum - ", $checksum,"\n" if $verbose;
-          close ($fh) or die "Can't close $file: $!";
-  
-          if (defined $odata->{$checksum}) {
-            push @{$odata->{$checksum}}, $file;
-          } else {
-            $odata->{$checksum} = [ $file ];
-          }
-        }
-      }
-    }
-  }
-  return $odata;
-}
-#
-sub link_all {
-# 
-# reads a serialised hash file - size, csum, [filenames]
-#
-  my $ifh = shift;
-  my $verbose = shift;
-
-  if (defined $ifh) {
-    my $obj = Data::Serializer->new();
-    my $idata = $obj->retrieve($ifh);
-    print "link_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
-    link_files($idata, $verbose);
-  }
-}
-#
 sub link_files {
 # 
-# reads a serialised hash file - size, csum, [filenames]
+# reads a serialised hash file - checksum, [filenames]
 #
   my $idata = shift;
   my $verbose = shift;
@@ -259,6 +251,18 @@ sub link_files {
     }
   }
   return $odata;
+}
+#
+sub link_all {
+  my $ifh = shift;
+  my $verbose = shift;
+
+  if (defined $ifh) {
+    my $obj = Data::Serializer->new();
+    my $idata = $obj->retrieve($ifh);
+    print "link_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
+    link_files($idata, $verbose);
+  }
 }
 
 __END__
