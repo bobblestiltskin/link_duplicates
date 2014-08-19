@@ -169,10 +169,11 @@ sub md5sum_data {
       if ((keys %$v) > 1) {
         while (my ($inode, $files) = each $v) {
           my $file = $files->[0]; # first file at inode
+          print "md5sum_data: file - ",$file if $verbose;
           open (my $fh, '<', $file) or die "Can't open '$file': $!";
           binmode ($fh);
           my $checksum = Digest::MD5->new->addfile($fh)->hexdigest;
-          print "md5sum_data: file - ",$file,", checksum - ", $checksum,"\n" if $verbose;
+          print ", checksum - ", $checksum,"\n" if $verbose;
           close ($fh) or die "Can't close $file: $!";
     
           if (defined $odata->{$checksum}) {
@@ -201,10 +202,11 @@ sub shasum_data {
     while (my ($md5sum, $files) = each $idata) {
       if (@$files > 1) {
         foreach my $file (@$files) {
+          print "shasum_data: file - ",$file if $verbose;
           open (my $fh, '<', $file) or die "Can't open '$file': $!";
           binmode ($fh);
           my $checksum = Digest::SHA->new($shasize)->addfile($fh)->hexdigest;
-          print "shasum_data: file - ",$file,", checksum - ", $checksum,"\n" if $verbose;
+          print ", checksum - ", $checksum,"\n" if $verbose;
           close ($fh) or die "Can't close $file: $!";
   
           if (defined $odata->{$checksum}) {
