@@ -6,7 +6,8 @@ echo "abc123" > /tmp/data/data3/abc
 echo "abc123" > /tmp/data/data4/abc
 echo "def123" > /tmp/data/data2/def
 ln /tmp/data/data2/def /tmp/data/data1/def
-ln /tmp/data/data2/def /tmp/data/data3/def
+echo "def123" > /tmp/data/data4/def
+ln /tmp/data/data4/def /tmp/data/data3/def
 echo "ghi123" > /tmp/data/data1/ghi
 echo "ghi123" > /tmp/data/data4/ghi
 echo "jkl123" > /tmp/data/data3/jkl
