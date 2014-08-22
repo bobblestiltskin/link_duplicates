@@ -1,9 +1,33 @@
 #!/usr/bin/perl -w
-# 
-# takes a minimum size in bytes, an output filename and a list of directories to process
-#
-# creates a hash of file size vs list of files of that size and serialises to output file
-#
+
+=pod
+
+=head1 NAME
+
+link_duplicate.pl - reduce used disk space by determining duplicates and hard-linking
+
+=head1 SYNOPSIS
+
+link_duplicate.pl [options] [paths ...]
+
+link_duplicate.pl --minsize 50 /path/to/dir1 /path/to/dir2
+
+This form is used to specify any minimum file size within the given sub-trees.
+
+link_duplicate.pl [options] [0-9] [paths ...]
+
+This form will used 10**[0-9] as the minimum file size to consider in the path.
+
+Options:
+  --minsize      minimum file size to process
+  --maxsize   maximum file size to process
+  --verbose   give once for some output, twice for more
+  --keep      keep the intermediate files (suffix .dat in /tmp by default).
+  --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
+  --shasize   size of sha digest (defaults to 512).
+
+=cut
+
 use strict;
 use warnings;
 
@@ -18,6 +42,7 @@ use IO::File;
 use Pod::Usage;
 
 my $MINSIZE; # capitalise since we use it in the File::Find wanted sub
+my $MAXSIZE = 0; # capitalise since we use it in the File::Find wanted sub
 my $help = 0;
 my $man = 0;
 my $keep = 0;
@@ -26,7 +51,8 @@ my $sha = 1;
 my $shasize = 512;
 my $getopt_result = GetOptions (
 #  'regexp=s' => \$regexp,
-  'size=i'    => \$MINSIZE,
+  'minsize=i' => \$MINSIZE,
+  'maxsize=i' => \$MAXSIZE,
   'shasize=i' => \$shasize,
   'verbose+'  => \$verbose,
   'keep!'     => \$keep,
@@ -45,51 +71,62 @@ die "Need a minimum file size" unless defined $MINSIZE;
 die "Need a minimum file size and some directories to process" unless (($MINSIZE =~ /\d+/) and @ARGV);
 
 $| = 1;
-my $data;
+my $DATA;
 print "*** Finding location of files\n";
-find(\&wanted, @ARGV);
-if (defined $data) {
-  print Data::Dumper->Dump([$data]) if $verbose > 1;
+find({wanted => \&process_files, follow => 0}, @ARGV);
+if (defined $DATA) {
+  print Data::Dumper->Dump([$DATA]) if $verbose > 1;
 
   my $find_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.find.dat' );
-  my $serializer = Data::Serializer->new;
-  $serializer->store($data, $find_fh);
+  Data::Serializer->new->store($DATA, $find_fh);
   $find_fh->seek(0, SEEK_SET);
 
-  my $stat_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.stat.dat' );
-  print "*** Getting size of files\n";
-  stat_files($find_fh, $stat_fh, $verbose);
-  $stat_fh->seek(0, SEEK_SET);
-
-  my $md5_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.md5.dat' );
   print "*** Calculating md5sum of files\n";
-  checksum_data(\&md5sum_data, $stat_fh, $md5_fh, $verbose);
+  my $md5_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.md5.dat' );
+  checksum_all(\&md5sum_data, $find_fh, $md5_fh, $verbose);
   $md5_fh->seek(0, SEEK_SET);
 
+  my $link_fh = $md5_fh;
   if ($sha) {
-    my $sha_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.sha.dat' );
     print "*** Calculating shasum of files\n";
-    checksum_data(\&shasum_data, $md5_fh, $sha_fh, $verbose, $shasize);
+    my $sha_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.sha.dat' );
+    checksum_all(\&shasum_data, $md5_fh, $sha_fh, $verbose, $shasize);
     $sha_fh->seek(0, SEEK_SET);
-    print "*** Linking files\n";
-    link_all($sha_fh, $verbose);
-  } else {
-    print "Linking files\n";
-    link_all($md5_fh, $verbose);
-  }
-}
+    $link_fh = $sha_fh;
+  } 
 
-sub wanted {
+  print "*** Linking files\n";
+  link_all($link_fh, $verbose);
+}
+#
+sub process_files {
+  return if (-l $File::Find::name);
   return unless (-f $File::Find::name);
-  my $size = (stat($File::Find::name))[7];
+  my @stat_data = stat($File::Find::name);
+  my $size = $stat_data[7];
   if ($size >= $MINSIZE) {
-    print "wanted: file - $File::Find::name, size - $size\n" if $verbose;
-    if (defined $data->{$size}) {
-      push @{$data->{$size}}, $File::Find::name;
+    next if ($MAXSIZE and ($size > $MAXSIZE));
+    my $inode = $stat_data[1];
+    print "wanted: file - $File::Find::name, size - $size, inode - $inode\n" if $verbose;
+    if (defined $DATA->{$size}->{$inode}) {
+      push @{$DATA->{$size}->{$inode}}, $File::Find::name;
     } else {
-      $data->{$size} = [ $File::Find::name ];
+      $DATA->{$size}->{$inode} = [ $File::Find::name ];
     }
   }
+}
+#
+sub checksum_file {
+  my ($file, $label, $algorithm, $verbose) = @_;
+
+  print "$label: file - ",$file if $verbose;
+  open (my $fh, '<', $file) or die "Can't open '$file': $!";
+  binmode ($fh);
+  my $checksum = $algorithm->addfile($fh)->hexdigest;
+  print ", checksum - ", $checksum,"\n" if $verbose;
+  close ($fh) or die "Can't close $file: $!";
+
+  return $checksum;
 }
 #
 sub update_hash {
@@ -103,66 +140,6 @@ sub update_hash {
   return $ptr;
 }
 #
-sub stat_data {
-  my $idata = shift;
-  my $verbose = shift;
-
-  my $odata;
-  if (defined $idata) {
-    while (my ($k, $v) = each $idata) {
-      if (@$v > 1) {
-        foreach my $file (@$v) {
-          my $inode = (stat($file))[1];
-          print "stat_data: file - ", $file, ", inode - $inode\n" if $verbose;
-
-          if (defined $odata->{$k}->{$inode}) {
-            push @{$odata->{$k}->{$inode}}, $file;
-          } else {
-            $odata->{$k}->{$inode} = [ $file ];
-          }
-        }
-      }
-    }
-  }
-  return $odata;
-}
-#
-sub stat_files {
-# 
-# reads a serialised hash file  - size,        [filenames]
-# writes a serialised hash file - size, inode, [filenames]
-#
-  my $ifh = shift;
-  my $ofh = shift;
-  my $verbose = shift;
-
-  if (defined $ifh) {
-    my $obj = Data::Serializer->new();
-    my $idata = $obj->retrieve($ifh);
-    print "stat_files: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
-    my $odata = stat_data($idata, $verbose);
-    if (defined $odata) {
-      print "stat_files: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
-      if (defined $ifh) {
-        $obj->store($odata, $ofh);
-      }
-    }
-  }
-}
-#  
-sub checksum_file {
-  my ($file, $label, $algorithm, $verbose) = @_;
-
-  print "$label: file - ",$file if $verbose;
-  open (my $fh, '<', $file) or die "Can't open '$file': $!";
-  binmode ($fh);
-  my $checksum = $algorithm->addfile($fh)->hexdigest;
-  print ", checksum - ", $checksum,"\n" if $verbose;
-  close ($fh) or die "Can't close $file: $!";
-
-  return $checksum;
-}
-
 sub md5sum_data {
 # 
 # reads a serialised hash file  - size, inode,  [filenames]
@@ -200,7 +177,7 @@ sub shasum_data {
     while (my ($md5sum, $files) = each $idata) {
       if (@$files > 1) {
         foreach my $file (@$files) {
-          my $checksum = checksum_file($file, "md5sum_data", Digest::SHA->new($shasize), $verbose);
+          my $checksum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
           $odata = update_hash($odata, $checksum, $file);
         }
       }
@@ -209,7 +186,7 @@ sub shasum_data {
   return $odata;
 }
 #
-sub checksum_data {
+sub checksum_all {
   my $function = shift;
   my $ifh = shift;
   my $ofh = shift;
@@ -219,9 +196,9 @@ sub checksum_data {
   if (defined $ifh) {
     my $obj = Data::Serializer->new;
     my $idata = $obj->retrieve($ifh);
-    print "checksum_data: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
+    print "checksum_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
     my $odata = $function->($idata, $verbose);
-    print "checksum_data: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
+    print "checksum_all: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
     if ((defined $ofh) and (defined $odata)) {
       $obj->store($odata, $ofh);
     }
@@ -267,37 +244,18 @@ sub link_all {
 
 __END__
 
-=head1 NAME
-
-link_duplicate.pl - reduce used disk space by determining duplicates and hard-linking
-
-=head1 SYNOPSIS
-
-link_duplicate.pl [options] [paths ...]
-
-link_duplicate.pl --size 50 /path/to/dir1 /path/to/dir2
-
-This form is used to specify any minimum file size within the given sub-trees.
-
-link_duplicate.pl           [0-9] /path/to/files
-
-This form will used 2**[0-9] as the minimum file size to consider in the path.
-
-Options:
-  --size      minimum file size to process
-  --verbose   give once for some output, twice for more
-  --keep      keep the intermediate files (suffix .dat in /tmp by default).
-  --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
-  --shasize   size of sha digest (defaults to 512).
-
 =head1 OPTIONS
 
 =over 8
 
-=item B<--size>
+=item B<--minsize>
 
 Minimum file size to process. If missing the first parameter must be a single digit which is used as the power of 10.
 i.e. 0 would give size of 1, 1 would give size of 10, 2 => 100, 3 => 1000...
+
+=item B<--maxsize>
+
+Maximum file size to process. Default value is 0 - not used when value is 0.
 
 =item B<--keep>
 
@@ -308,8 +266,6 @@ e.g.
 =over
 
 =item /tmp/iFVZNes1_O.find.dat
-
-=item /tmp/y86IoWxOrU.stat.dat
 
 =item /tmp/NLQpPUg0Ad.md5.dat
 
@@ -341,10 +297,13 @@ Prints the manual page and exits.
 
 =head1 DESCRIPTION
 
-B<link_duplicate.pl> will search through a file system for file above a minimum specified size. The associated inodes of each file of each size found are compared. 
-Any duplicates are discarded (already these are hard links). Each file of that size has the md5sum computed. Any duplicates have their shasum computed
-if the switch --sha is set. Any duplicates are then consolidated to one inode and hard links made to the previous names. 
+B<link_duplicate.pl> will search through a file system for file above a minimum specified size.
+The set of all inodes of each file of each size found is computed. 
+If there is more than one inode for each size then each inode of that size has the md5sum computed. 
+Any inodes with duplicate md5sums have their shasum computed if the switch --sha is set. 
+Any inodes with duplicate checksums are then consolidated to one inode and hard links made to the previous names. 
 
-File system integrity is preserved, but the total space is reduced. This is especially useful on back-up disks with multiple copies of large files.
+File system integrity is preserved, but the total space is reduced.
+This is especially useful on back-up disks with multiple copies of large files.
 
 =cut
