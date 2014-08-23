@@ -73,6 +73,8 @@ die "Need a minimum file size and some directories to process" unless (($MINSIZE
 $| = 1;
 my $DATA;
 print "*** Finding location of files\n";
+print "*** MINSIZE is $MINSIZE\n";
+print "*** MAXSIZE is $MAXSIZE\n" if (defined $MAXSIZE);
 find({wanted => \&process_files, follow => 0}, @ARGV);
 if (defined $DATA) {
   print Data::Dumper->Dump([$DATA]) if $verbose > 1;
@@ -82,22 +84,22 @@ if (defined $DATA) {
   $find_fh->seek(0, SEEK_SET);
 
   print "*** Calculating md5sum of files\n";
-  my $md5_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.md5.dat' );
-  checksum_all(\&md5sum_data, $find_fh, $md5_fh, $verbose);
-  $find_fh->seek(0, SEEK_SET);
-  $md5_fh->seek(0, SEEK_SET);
+#  my $md5_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.md5.dat' );
+  checksum_and_link($find_fh, $verbose, $shasize);
+#  $find_fh->seek(0, SEEK_SET);
+#  $md5_fh->seek(0, SEEK_SET);
 
-  my $link_fh = $md5_fh;
-  if ($sha) {
-    print "*** Calculating shasum of files\n";
-    my $sha_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.sha.dat' );
-    checksum_all(\&shasum_data, $md5_fh, $sha_fh, $verbose, $shasize);
-    $sha_fh->seek(0, SEEK_SET);
-    $link_fh = $sha_fh;
-  } 
-
-  print "*** Linking files\n";
-  link_all($link_fh, $find_fh, $verbose);
+#  my $link_fh = $md5_fh;
+#  if ($sha) {
+#    print "*** Calculating shasum of files\n";
+#    my $sha_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.sha.dat' );
+#    checksum_all(\&shasum_data, $md5_fh, $sha_fh, $verbose, $shasize);
+#    $sha_fh->seek(0, SEEK_SET);
+#    $link_fh = $sha_fh;
+#  } 
+#
+#  print "*** Linking files\n";
+#  link_all($link_fh, $find_fh, $verbose);
 }
 #
 sub process_files {
@@ -106,7 +108,7 @@ sub process_files {
   my @stat_data = stat($File::Find::name);
   my $size = $stat_data[7];
   if ($size >= $MINSIZE) {
-    if ((defined $MAXSIZE) and ($size < $MAXSIZE)) {
+    if ((not defined $MAXSIZE) or ($size < $MAXSIZE)) {
       my $inode = $stat_data[1];
       print "wanted: file - $File::Find::name, size - $size, inode - $inode\n" if $verbose;
       if (defined $DATA->{$size}->{$inode}) {
@@ -131,120 +133,151 @@ sub checksum_file {
   return $checksum;
 }
 #
-sub md5sum_data {
+sub checksum_and_link {
 # 
 # reads a serialised hash file  - size, inode,  [filenames]
-# writes a serialised hash file - size, md5sum, inode, filename
 #
-  my $idata = shift;
-  my $verbose = shift;
-
-  my $odata;
-  if (defined $idata) {
-    while (my ($size, $v) = each $idata) {
-      if ((keys %$v) > 1) {
-        while (my ($inode, $files) = each $v) {
-          my $file = $files->[0]; # first file at inode
-          my $checksum = checksum_file($file, "md5sum_data", Digest::MD5->new, $verbose);
-          $odata->{$size}->{$checksum}->{$inode} = $file;
-        }
-      }
-    }
-  }
-  return $odata;
-}
-#
-sub shasum_data {
-# 
-# reads a serialised hash file  - size, md5sum, inode, filename
-# writes a serialised hash file - size, shasum, inode, filename
-#
-  my $idata = shift;
+  my $stat_fh = shift;
   my $verbose = shift;
   my $shasize = shift;
 
-  my $odata;
-  if (defined $idata) {
-    while (my ($size, $v) = each $idata) {
-      while (my ($md5sum, $w) = each $v) {
-        if ((keys %$w) > 1) {
-          while (my ($inode, $file) = each $w) {
-            my $checksum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
-            $odata->{$size}->{$checksum}->{$inode} = $file;
+  my $md5_data;
+  my $sha_data;
+  if (defined $stat_fh) {
+    my $stat_data = Data::Serializer->new->retrieve($stat_fh);
+    if (defined $stat_data) {
+      while (my ($size, $v) = each $stat_data) {
+        if ((keys %$v) > 1) { # more than one inode for this file size
+          while (my ($inode, $files) = each $v) {
+            my $file = $files->[0]; # first file at inode
+            my $md5sum = checksum_file($file, "md5sum_data", Digest::MD5->new, $verbose);
+            $md5_data->{$size}->{$md5sum}->{$inode} = $file;
+          }
+          while (my ($md5sum, $w) = each $md5_data->{$size}) {
+            if ((keys %$w) > 1) {
+              while (my ($inode, $file) = each $w) {
+                my $shasum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
+                $sha_data->{$size}->{$shasum}->{$inode} = $file;
+              }
+            }
+          }
+          if (defined $sha_data) {
+            while (my ($size, $v) = each $sha_data) {
+              while (my ($shasum, $w) = each $v) {
+                my @files;
+                if ((keys %$w) > 1) {
+                  foreach my $inode (keys %$w) {
+                    push @files, @{$stat_data->{$size}->{$inode}};
+                   }
+                }
+                if (@files > 1) {
+                  my $root = $files[0];
+                  for my $idx (1 .. $#files) {
+                    my $file = $files[$idx];
+                    print "link_files: linking ",$file," to $root with shasum $shasum\n" if $verbose;
+                    unlink $file and link $root, $file;
+                  }
+                }
+              }
+            }
           }
         }
       }
     }
   }
-  return $odata;
 }
 #
-sub checksum_all {
-  my $function = shift;
-  my $ifh = shift;
-  my $ofh = shift;
-  my $verbose = shift;
-  my $shasize = shift;
-
-  if (defined $ifh) {
-    my $obj = Data::Serializer->new;
-    my $idata = $obj->retrieve($ifh);
-    print "checksum_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
-    my $odata = $function->($idata, $verbose);
-    print "checksum_all: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
-    if ((defined $ofh) and (defined $odata)) {
-      $obj->store($odata, $ofh);
-    }
-  }
-}
+#sub shasum_data {
+## 
+## reads a serialised hash file  - size, md5sum, inode, filename
+## writes a serialised hash file - size, shasum, inode, filename
+##
+#  my $idata = shift;
+#  my $verbose = shift;
+#  my $shasize = shift;
 #
-sub link_files {
-# 
-# reads two serialised hash files - size, checksum, inode, filename
-# and                             - size, inode, [filenames]
+#  my $odata;
+#  if (defined $idata) {
+#    while (my ($size, $v) = each $idata) {
+#      while (my ($md5sum, $w) = each $v) {
+#        if ((keys %$w) > 1) {
+#          while (my ($inode, $file) = each $w) {
+#            my $checksum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
+#            $odata->{$size}->{$checksum}->{$inode} = $file;
+#          }
+#        }
+#      }
+#    }
+#  }
+#  return $odata;
+#}
 #
-  my $idata = shift;
-  my $stat_data = shift;
-  my $verbose = shift;
-
-  my $odata;
-  if (defined $idata) {
-    while (my ($size, $v) = each $idata) {
-      while (my ($checksum, $w) = each $v) {
-        my @files;
-        if ((keys %$w) > 1) {
-          foreach my $inode (keys %$w) {
-            push @files, @{$stat_data->{$size}->{$inode}};
-           }
-        }
-        if (@files > 1) {
-          my $root = $files[0];
-          for my $idx (1 .. $#files) {
-            my $file = $files[$idx];
-            print "link_files: linking ",$file," to $root with checksum $checksum\n" if $verbose;
-            unlink $file and link $root, $file;
-           }
-         }
-      }
-    }
-  }
-  return $odata;
-}
+#sub checksum_all {
+#  my $function = shift;
+#  my $ifh = shift;
+#  my $ofh = shift;
+#  my $verbose = shift;
+#  my $shasize = shift;
 #
-sub link_all {
-  my $ifh = shift;
-  my $stat_fh = shift;
-  my $verbose = shift;
-
-  if (defined $ifh) {
-    my $idata = Data::Serializer->new->retrieve($ifh);
-    if (defined $stat_fh) {
-      my $stat_data = Data::Serializer->new->retrieve($stat_fh);
-      print "link_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
-      link_files($idata, $stat_data, $verbose);
-    }
-  }
-}
+#  if (defined $ifh) {
+#    my $obj = Data::Serializer->new;
+#    my $idata = $obj->retrieve($ifh);
+#    print "checksum_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
+#    my $odata = $function->($idata, $verbose);
+#    print "checksum_all: odata is ",Data::Dumper->Dump([$odata]) if $verbose > 1;
+#    if ((defined $ofh) and (defined $odata)) {
+#      $obj->store($odata, $ofh);
+#    }
+#  }
+#}
+#
+#sub link_files {
+## 
+## reads two serialised hash files - size, checksum, inode, filename
+## and                             - size, inode, [filenames]
+##
+#  my $idata = shift;
+#  my $stat_data = shift;
+#  my $verbose = shift;
+#
+#  my $odata;
+#  if (defined $idata) {
+#    while (my ($size, $v) = each $idata) {
+#      while (my ($checksum, $w) = each $v) {
+#        my @files;
+#        if ((keys %$w) > 1) {
+#          foreach my $inode (keys %$w) {
+#            push @files, @{$stat_data->{$size}->{$inode}};
+#           }
+#        }
+#        if (@files > 1) {
+#          my $root = $files[0];
+#          for my $idx (1 .. $#files) {
+#            my $file = $files[$idx];
+#            print "link_files: linking ",$file," to $root with checksum $checksum\n" if $verbose;
+#            unlink $file and link $root, $file;
+#          }
+#        }
+#      }
+#    }
+#  }
+#  return $odata;
+#}
+#
+#sub link_all {
+#  my $ifh = shift;
+#  my $stat_fh = shift;
+#  my $verbose = shift;
+#
+#  if (defined $ifh) {
+#    my $idata = Data::Serializer->new->retrieve($ifh);
+#    if (defined $stat_fh) {
+#      my $stat_data = Data::Serializer->new->retrieve($stat_fh);
+#      print "link_all: idata is ",Data::Dumper->Dump([$idata]) if $verbose > 1;
+#      link_files($idata, $stat_data, $verbose);
+#    }
+#  }
+#}
 
 __END__
 
