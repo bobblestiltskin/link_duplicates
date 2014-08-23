@@ -42,7 +42,7 @@ use IO::File;
 use Pod::Usage;
 
 my $MINSIZE; # capitalise since we use it in the File::Find wanted sub
-my $MAXSIZE = 0; # capitalise since we use it in the File::Find wanted sub
+my $MAXSIZE; # capitalise since we use it in the File::Find wanted sub
 my $help = 0;
 my $man = 0;
 my $keep = 0;
@@ -106,13 +106,14 @@ sub process_files {
   my @stat_data = stat($File::Find::name);
   my $size = $stat_data[7];
   if ($size >= $MINSIZE) {
-    next if ($MAXSIZE and ($size > $MAXSIZE));
-    my $inode = $stat_data[1];
-    print "wanted: file - $File::Find::name, size - $size, inode - $inode\n" if $verbose;
-    if (defined $DATA->{$size}->{$inode}) {
-      push @{$DATA->{$size}->{$inode}}, $File::Find::name;
-    } else {
-      $DATA->{$size}->{$inode} = [ $File::Find::name ];
+    if ((defined $MAXSIZE) and ($size < $MAXSIZE)) {
+      my $inode = $stat_data[1];
+      print "wanted: file - $File::Find::name, size - $size, inode - $inode\n" if $verbose;
+      if (defined $DATA->{$size}->{$inode}) {
+        push @{$DATA->{$size}->{$inode}}, $File::Find::name;
+      } else {
+        $DATA->{$size}->{$inode} = [ $File::Find::name ];
+      }
     }
   }
 }
