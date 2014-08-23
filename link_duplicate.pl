@@ -23,6 +23,8 @@ Options:
   --maxsize   maximum file size to process
   --verbose   give once for some output, twice for more
   --keep      keep the intermediate files (suffix .dat in /tmp by default).
+  --file      a pre-computed file of serialised size, inode, [files]
+  --link      link duplicates
   --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
   --shasize   size of sha digest (defaults to 512).
 
@@ -46,16 +48,19 @@ my $MAXSIZE; # capitalise since we use it in the File::Find wanted sub
 my $help = 0;
 my $man = 0;
 my $keep = 0;
+my $file;
+my $link = 1;
 my $verbose = 0;
 my $sha = 1;
 my $shasize = 512;
 my $getopt_result = GetOptions (
-#  'regexp=s' => \$regexp,
   'minsize=i' => \$MINSIZE,
   'maxsize=i' => \$MAXSIZE,
   'shasize=i' => \$shasize,
   'verbose+'  => \$verbose,
   'keep!'     => \$keep,
+  'file=s'    => \$file,
+  'link!'     => \$link,
   'sha!'      => \$sha,
   'help|?'    => \$help,
   'man'       => \$man,
@@ -65,26 +70,33 @@ die "Bad Parameter passed to $0" unless ($getopt_result);
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose => 2) if $man;
 
-die "Need some directories to process" unless @ARGV;
-$MINSIZE = (10 ** shift) if (not defined $MINSIZE) and ($ARGV[0] =~ /^\d$/);
-die "Need a minimum file size" unless defined $MINSIZE;
-die "Need a minimum file size and some directories to process" unless (($MINSIZE =~ /\d+/) and @ARGV);
-
 $| = 1;
 my $DATA;
-print "*** Finding location of files\n";
-print "*** MINSIZE is $MINSIZE\n";
-print "*** MAXSIZE is $MAXSIZE\n" if (defined $MAXSIZE);
-find({wanted => \&process_files, follow => 0}, @ARGV);
-if (defined $DATA) {
+my $find_fh;
+if (defined $file) {
+  $find_fh = IO::File->new($file,"r") or die "Can't open $file, $!";
+  $DATA = Data::Serializer->new->retrieve($find_fh);
+} else {
+  die "Need some directories to process" unless @ARGV;
+  $MINSIZE = (10 ** shift) if (not defined $MINSIZE) and ($ARGV[0] =~ /^\d$/);
+  die "Need a minimum file size" unless defined $MINSIZE;
+  die "Need a minimum file size and some directories to process" unless (($MINSIZE =~ /\d+/) and @ARGV);
+
+  print "*** Finding location of files\n";
+  print "*** MINSIZE is $MINSIZE\n";
+  print "*** MAXSIZE is $MAXSIZE\n" if (defined $MAXSIZE);
+  find({wanted => \&process_files, follow => 0}, @ARGV);
+  if (($keep or not $link) and defined $DATA) {
+    $find_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.find.dat' );
+    Data::Serializer->new->store($DATA, $find_fh);
+    $find_fh->seek(0, SEEK_SET);
+  }
+}
+
+if ($link and defined $DATA) {
   print Data::Dumper->Dump([$DATA]) if $verbose > 1;
-
-  my $find_fh = File::Temp->new(UNLINK => !$keep, SUFFIX => '.find.dat' );
-  Data::Serializer->new->store($DATA, $find_fh);
-  $find_fh->seek(0, SEEK_SET);
-
   print "*** Calculating md5sum of files\n";
-  checksum_and_link($find_fh, $verbose, $sha, $shasize);
+  checksum_and_link($DATA, $verbose, $sha, $shasize);
 }
 #
 sub process_files {
@@ -182,26 +194,23 @@ sub checksum_and_link {
 # 
 # reads a serialised hash file  - size, inode,  [filenames]
 #
-  my $stat_fh = shift;
+  my $stat_data = shift;
   my $verbose = shift;
   my $sha = shift;
   my $shasize = shift;
 
   my $md5_data;
   my $sha_data;
-  if (defined $stat_fh) {
-    my $stat_data = Data::Serializer->new->retrieve($stat_fh);
-    if (defined $stat_data) {
-      while (my ($size, $inode_files) = each $stat_data) {
-        if ((keys %$inode_files) > 1) { # more than one inode for this file size
-          $md5_data = md5sum_data($inode_files, $md5_data, $size, $verbose);
-          my $checksum_data = $md5_data;
-          if ($sha) {
-            $sha_data = shasum_data($md5_data, $sha_data, $size, $verbose, $shasize);
-            $checksum_data = $sha_data;
-          }
-          link_files($checksum_data, $stat_data, $size, $verbose);
+  if (defined $stat_data) {
+    while (my ($size, $inode_files) = each $stat_data) {
+      if ((keys %$inode_files) > 1) { # more than one inode for this file size
+        $md5_data = md5sum_data($inode_files, $md5_data, $size, $verbose);
+        my $checksum_data = $md5_data;
+        if ($sha) {
+          $sha_data = shasum_data($md5_data, $sha_data, $size, $verbose, $shasize);
+          $checksum_data = $sha_data;
         }
+        link_files($checksum_data, $stat_data, $size, $verbose);
       }
     }
   }
@@ -232,11 +241,15 @@ e.g.
 
 =item /tmp/iFVZNes1_O.find.dat
 
-=item /tmp/NLQpPUg0Ad.md5.dat
-
-=item /tmp/JL6Th_9d4T.sha.dat
-
 =back
+
+=item B<--file>
+
+Use a pre-computed file of serialised size, inode, [files]
+
+=item B<--link>
+
+Checksum files and link duplicates. Default value is 1.
 
 =item B<--verbose>
 
