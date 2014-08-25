@@ -51,6 +51,7 @@ my $keep = 0;
 my $file;
 my $link = 1;
 my $verbose = 0;
+my $debug = 0;
 my $sha = 1;
 my $shasize = 512;
 my $getopt_result = GetOptions (
@@ -58,6 +59,7 @@ my $getopt_result = GetOptions (
   'maxsize=i' => \$MAXSIZE,
   'shasize=i' => \$shasize,
   'verbose+'  => \$verbose,
+  'debug+'    => \$debug,
   'keep!'     => \$keep,
   'file=s'    => \$file,
   'link!'     => \$link,
@@ -94,7 +96,7 @@ if (defined $file) {
 }
 
 if ($link and defined $DATA) {
-  print Data::Dumper->Dump([$DATA]) if $verbose > 1;
+  print Data::Dumper->Dump([$DATA]) if $debug;
   print "*** Calculating md5sum of files\n";
   checksum_and_link($DATA, $verbose, $sha, $shasize);
 }
@@ -168,22 +170,20 @@ sub link_files {
   my $size = shift;
   my $verbose = shift;
 
-  if (defined $checksum_data) {
-    while (my ($size, $v) = each $checksum_data) {
-      while (my ($checksum, $w) = each $v) {
-        my @files;
-        if ((keys %$w) > 1) {
-          foreach my $inode (keys %$w) {
-            push @files, @{$stat_data->{$size}->{$inode}};
-           }
+  if (defined $checksum_data and defined $checksum_data->{$size}) {
+    while (my ($checksum, $inode_files) = each $checksum_data->{$size}) {
+      my @files;
+      if ((keys %$inode_files) > 1) {
+        foreach my $inode (keys %$inode_files) {
+          push @files, @{$stat_data->{$size}->{$inode}};
         }
-        if (@files > 1) {
-          my $root = $files[0];
-          for my $idx (1 .. $#files) {
-            my $file = $files[$idx];
-            print "link_files: linking ",$file," to $root with checksum $checksum\n" if $verbose;
-            unlink $file and link $root, $file;
-          }
+      }
+      if (@files > 1) {
+        my $root = $files[0];
+        for my $idx (1 .. $#files) {
+          my $file = $files[$idx];
+          print "link_files: linking ",$file," to $root with checksum $checksum\n" if $verbose;
+          unlink $file and link $root, $file;
         }
       }
     }
@@ -253,7 +253,11 @@ Checksum files and link duplicates. Default value is 1.
 
 =item B<--verbose>
 
-Level of verbosity; specify once for some output; twice for data dumps, too. Default value is 0.
+Level of verbosity; specify for some output. Default value is 0.
+
+=item B<--debug>
+
+Level of verbosity; specify for data dumps. Default value is 0.
 
 =item B<--sha>
 
