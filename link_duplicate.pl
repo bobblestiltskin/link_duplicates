@@ -51,15 +51,15 @@ my $keep = 0;
 my $file;
 my $link = 1;
 my $verbose = 0;
-my $debug = 0;
+my $dump = 0;
 my $sha = 1;
 my $shasize = 512;
 my $getopt_result = GetOptions (
   'minsize=i' => \$MINSIZE,
   'maxsize=i' => \$MAXSIZE,
   'shasize=i' => \$shasize,
-  'verbose+'  => \$verbose,
-  'debug+'    => \$debug,
+  'verbose!'  => \$verbose,
+  'dump!'     => \$dump,
   'keep!'     => \$keep,
   'file=s'    => \$file,
   'link!'     => \$link,
@@ -96,7 +96,7 @@ if (defined $file) {
 }
 
 if ($link and defined $DATA) {
-  print Data::Dumper->Dump([$DATA]) if $debug;
+  print Data::Dumper->Dump([$DATA]) if $dump;
   print "*** Calculating md5sum of files\n";
   checksum_and_link($DATA, $verbose, $sha, $shasize);
 }
@@ -253,11 +253,11 @@ Checksum files and link duplicates. Default value is 1.
 
 =item B<--verbose>
 
-Level of verbosity; specify for some output. Default value is 0.
+Specify for verbose output. Default value is 0.
 
-=item B<--debug>
+=item B<--dump>
 
-Level of verbosity; specify for data dumps. Default value is 0.
+Specify to dump data. Default value is 0.
 
 =item B<--sha>
 
