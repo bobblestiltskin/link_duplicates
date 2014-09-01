@@ -19,10 +19,11 @@ link_duplicate.pl [options] [0-9] [paths ...]
 This form will used 10**[0-9] as the minimum file size to consider in the path.
 
 Options:
-  --minsize      minimum file size to process
+  --minsize   minimum file size to process
   --maxsize   maximum file size to process
-  --verbose   give once for some output, twice for more
-  --keep      keep the intermediate files (suffix .dat in /tmp by default).
+  --verbose   set to give verbose output 
+  --dump      set to dump file stat hash
+  --keep      keep the intermediate file (suffix .dat in /tmp by default).
   --file      a pre-computed file of serialised size, inode, [files]
   --link      link duplicates
   --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
@@ -134,11 +135,11 @@ sub checksum_file {
 #
 sub md5sum_data {
   my $inode_files = shift;
-  my $md5_data = shift;
   my $size = shift;
   my $verbose = shift;
 
-  while (my ($inode, $files) = each $inode_files) {
+  my $md5_data;
+  while (my ($inode, $files) = each %{$inode_files}) {
     my $file = $files->[0]; # first file at inode
     my $md5sum = checksum_file($file, "md5sum_data", Digest::MD5->new, $verbose);
     $md5_data->{$size}->{$md5sum}->{$inode} = $file;
@@ -148,14 +149,14 @@ sub md5sum_data {
 #
 sub shasum_data {
   my $md5_data = shift;
-  my $sha_data = shift;
   my $size = shift;
   my $verbose = shift;
   my $shasize = shift;
 
-  while (my ($md5sum, $w) = each $md5_data->{$size}) {
-    if ((keys %$w) > 1) {
-      while (my ($inode, $file) = each $w) {
+  my $sha_data;
+  while (my ($md5sum, $w) = each %{$md5_data->{$size}}) {
+    if ((keys %$w) > 1) { # more than one inode with this md5 sum
+      while (my ($inode, $file) = each %$w) {
         my $shasum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
         $sha_data->{$size}->{$shasum}->{$inode} = $file;
       }
@@ -171,7 +172,7 @@ sub link_files {
   my $verbose = shift;
 
   if (defined $checksum_data and defined $checksum_data->{$size}) {
-    while (my ($checksum, $inode_files) = each $checksum_data->{$size}) {
+    while (my ($checksum, $inode_files) = each %{$checksum_data->{$size}}) {
       my @files;
       if ((keys %$inode_files) > 1) {
         foreach my $inode (keys %$inode_files) {
@@ -199,16 +200,12 @@ sub checksum_and_link {
   my $sha = shift;
   my $shasize = shift;
 
-  my $md5_data;
-  my $sha_data;
   if (defined $stat_data) {
-    while (my ($size, $inode_files) = each $stat_data) {
+    while (my ($size, $inode_files) = each %{$stat_data}) {
       if ((keys %$inode_files) > 1) { # more than one inode for this file size
-        $md5_data = md5sum_data($inode_files, $md5_data, $size, $verbose);
-        my $checksum_data = $md5_data;
+        my $checksum_data = md5sum_data($inode_files, $size, $verbose);
         if ($sha) {
-          $sha_data = shasum_data($md5_data, $sha_data, $size, $verbose, $shasize);
-          $checksum_data = $sha_data;
+          $checksum_data = shasum_data($checksum_data, $size, $verbose, $shasize);
         }
         link_files($checksum_data, $stat_data, $size, $verbose);
       }
