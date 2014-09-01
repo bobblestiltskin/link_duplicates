@@ -23,7 +23,7 @@ Options:
   --maxsize   maximum file size to process
   --verbose   set to give verbose output 
   --dump      set to dump file stat hash
-  --keep      keep the intermediate file (suffix .dat in /tmp by default).
+  --keep      keep the intermediate file (suffix .find.dat in /tmp by default).
   --file      a pre-computed file of serialised size, inode, [files]
   --link      link duplicates
   --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
@@ -139,7 +139,7 @@ sub md5sum_data {
   my $verbose = shift;
 
   my $md5_data;
-  while (my ($inode, $files) = each %{$inode_files}) {
+  while (my ($inode, $files) = each %$inode_files) {
     my $file = $files->[0]; # first file at inode
     my $md5sum = checksum_file($file, "md5sum_data", Digest::MD5->new, $verbose);
     $md5_data->{$size}->{$md5sum}->{$inode} = $file;
@@ -201,7 +201,7 @@ sub checksum_and_link {
   my $shasize = shift;
 
   if (defined $stat_data) {
-    while (my ($size, $inode_files) = each %{$stat_data}) {
+    while (my ($size, $inode_files) = each %$stat_data) {
       if ((keys %$inode_files) > 1) { # more than one inode for this file size
         my $checksum_data = md5sum_data($inode_files, $size, $verbose);
         if ($sha) {
@@ -286,4 +286,3 @@ File system integrity is preserved, but the total space is reduced.
 This is especially useful on back-up disks with multiple copies of large files.
 
 =cut
-
