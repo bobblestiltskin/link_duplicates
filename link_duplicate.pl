@@ -154,9 +154,9 @@ sub shasum_data {
   my $shasize = shift;
 
   my $sha_data;
-  while (my ($md5sum, $w) = each %{$md5_data->{$size}}) {
-    if ((keys %$w) > 1) { # more than one inode with this md5 sum
-      while (my ($inode, $file) = each %$w) {
+  for my $inode_file (values %{$md5_data->{$size}}) {
+    if ((keys %$inode_file) > 1) { # more than one inode with this md5 sum
+      while (my ($inode, $file) = each %$inode_file) {
         my $shasum = checksum_file($file, "shasum_data", Digest::SHA->new($shasize), $verbose);
         $sha_data->{$size}->{$shasum}->{$inode} = $file;
       }
@@ -172,10 +172,10 @@ sub link_files {
   my $verbose = shift;
 
   if (defined $checksum_data and defined $checksum_data->{$size}) {
-    while (my ($checksum, $inode_files) = each %{$checksum_data->{$size}}) {
+    for my $inode_files (values %{$checksum_data->{$size}}) {
       my @files;
       if ((keys %$inode_files) > 1) {
-        foreach my $inode (keys %$inode_files) {
+        for my $inode (keys %$inode_files) {
           push @files, @{$stat_data->{$size}->{$inode}};
         }
       }
@@ -183,7 +183,7 @@ sub link_files {
         my $root = $files[0];
         for my $idx (1 .. $#files) {
           my $file = $files[$idx];
-          print "link_files: linking ",$file," to $root with checksum $checksum\n" if $verbose;
+          print "link_files: linking ",$file," to $root\n" if $verbose;
           unlink $file and link $root, $file;
         }
       }
