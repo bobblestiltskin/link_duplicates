@@ -260,9 +260,9 @@ Specify to dump data. Default value is 0.
 
 Use shasum after md5sum. This is a "belt and braces approach" due to (admittedly slim possibility) of md5 collisions. Default value is 1.
 
-=item B<--sha>
+=item B<--shasize>
 
-Size of shasum. Default value is 512.
+Size of sha digest. Default value is 512.
 
 =item B<--help>
 
