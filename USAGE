@@ -43,10 +43,46 @@ total 12
 -rw-r--r-- 1 bob bob 7 Jan  8 09:50 abc
 -rw-r--r-- 2 bob bob 7 Jan  8 09:50 def
 -rw-r--r-- 1 bob bob 7 Jan  8 09:50 ghi
-bob@bobspc ~/s/p/link_duplicates> perl link_duplicate.pl 0 /tmp/data
+bob@bobspc ~/s/p/link_duplicates> perl link_duplicate.pl --verbose 0 /tmp/data
 *** Finding location of files
 *** MINSIZE is 1
+wanted: file - /tmp/data/data3/def, size - 7, inode - 25690542
+wanted: file - /tmp/data/data3/abc, size - 7, inode - 25690539
+wanted: file - /tmp/data/data3/jkl, size - 7, inode - 25690549
+wanted: file - /tmp/data/data2/def, size - 7, inode - 25690541
+wanted: file - /tmp/data/data2/abc, size - 7, inode - 25690538
+wanted: file - /tmp/data/data1/def, size - 7, inode - 25690541
+wanted: file - /tmp/data/data1/abc, size - 7, inode - 25690537
+wanted: file - /tmp/data/data1/ghi, size - 7, inode - 25690543
+wanted: file - /tmp/data/data1/xyz, size - 4, inode - 25690550
+wanted: file - /tmp/data/data4/def, size - 7, inode - 25690542
+wanted: file - /tmp/data/data4/abc, size - 7, inode - 25690540
+wanted: file - /tmp/data/data4/ghi, size - 7, inode - 25690544
 *** Calculating md5sum of files
+md5sum_data: file - /tmp/data/data4/ghi, checksum - 5efe41b654b978fd0ab27d8b26061cf0
+md5sum_data: file - /tmp/data/data3/def, checksum - d93ef486ced011f786a650654d837f8c
+md5sum_data: file - /tmp/data/data3/jkl, checksum - 072fb97d7ff234142ed0bea4bce29d0e
+md5sum_data: file - /tmp/data/data3/abc, checksum - 2c6c8ab6ba8b9c98a1939450eb4089ed
+md5sum_data: file - /tmp/data/data2/abc, checksum - 2c6c8ab6ba8b9c98a1939450eb4089ed
+md5sum_data: file - /tmp/data/data2/def, checksum - d93ef486ced011f786a650654d837f8c
+md5sum_data: file - /tmp/data/data4/abc, checksum - 2c6c8ab6ba8b9c98a1939450eb4089ed
+md5sum_data: file - /tmp/data/data1/ghi, checksum - 5efe41b654b978fd0ab27d8b26061cf0
+md5sum_data: file - /tmp/data/data1/abc, checksum - 2c6c8ab6ba8b9c98a1939450eb4089ed
+shasum_data: file - /tmp/data/data1/abc, checksum - 9760a80808894b09441d602b4fc779877756d98e976cdd33c64919b13b4f89dfb2d768562be616cbebf375f3f76598ca1dd5a90749e55899222a80ee3c7b15a5
+shasum_data: file - /tmp/data/data4/abc, checksum - 9760a80808894b09441d602b4fc779877756d98e976cdd33c64919b13b4f89dfb2d768562be616cbebf375f3f76598ca1dd5a90749e55899222a80ee3c7b15a5
+shasum_data: file - /tmp/data/data3/abc, checksum - 9760a80808894b09441d602b4fc779877756d98e976cdd33c64919b13b4f89dfb2d768562be616cbebf375f3f76598ca1dd5a90749e55899222a80ee3c7b15a5
+shasum_data: file - /tmp/data/data2/abc, checksum - 9760a80808894b09441d602b4fc779877756d98e976cdd33c64919b13b4f89dfb2d768562be616cbebf375f3f76598ca1dd5a90749e55899222a80ee3c7b15a5
+shasum_data: file - /tmp/data/data4/ghi, checksum - 77676b6a1b009237d7665bd234d10c066bc7fc3e5655cbd8707736f525e457227650a91b50984c9bf0f098f71a311b701bb67601f630d8f7507843a94a726b9a
+shasum_data: file - /tmp/data/data1/ghi, checksum - 77676b6a1b009237d7665bd234d10c066bc7fc3e5655cbd8707736f525e457227650a91b50984c9bf0f098f71a311b701bb67601f630d8f7507843a94a726b9a
+shasum_data: file - /tmp/data/data3/def, checksum - 59aa91dace300680a842922a75f622bfd9590405ef134a9c6150d7373bf767b2ed9163a0dd9727e7e039d02141b98b6d1114b687cdf29fe0f367b721a0d0531c
+shasum_data: file - /tmp/data/data2/def, checksum - 59aa91dace300680a842922a75f622bfd9590405ef134a9c6150d7373bf767b2ed9163a0dd9727e7e039d02141b98b6d1114b687cdf29fe0f367b721a0d0531c
+link_files: linking /tmp/data/data4/def to /tmp/data/data3/def
+link_files: linking /tmp/data/data2/def to /tmp/data/data3/def
+link_files: linking /tmp/data/data1/def to /tmp/data/data3/def
+link_files: linking /tmp/data/data2/abc to /tmp/data/data3/abc
+link_files: linking /tmp/data/data4/abc to /tmp/data/data3/abc
+link_files: linking /tmp/data/data1/abc to /tmp/data/data3/abc
+link_files: linking /tmp/data/data1/ghi to /tmp/data/data4/ghi
 bob@bobspc ~/s/p/link_duplicates> ls -lR /tmp/data
 /tmp/data:
 total 16
