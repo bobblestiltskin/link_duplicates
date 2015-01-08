@@ -1,0 +1,69 @@
+NAME
+    link_duplicate.pl - reduce used disk space by determining duplicates and
+    hard-linking
+
+SYNOPSIS
+    link_duplicate.pl [options] [paths ...]
+
+    link_duplicate.pl --minsize 50 /path/to/dir1 /path/to/dir2
+
+    This form is used to specify any minimum file size within the given
+    sub-trees.
+
+    link_duplicate.pl [options] [0-9] [paths ...]
+
+    This form will use 10**[0-9] as the minimum file size to consider in the
+    path.
+    
+OPTIONS
+    --minsize
+            Minimum file size to process. If missing the first parameter must
+            be a single digit which is used as the power of 10. i.e. 0 would
+            give size of 1, 1 would give size of 10, 2 => 100, 3 => 1000...
+
+    --maxsize
+            Maximum file size to process. Default value is 0 - not used when
+            value is 0.
+
+    --keep  Keep the intermediate files (suffix .dat in $TMPDIR). Default
+            value is 0.
+
+            e.g.
+
+            /tmp/iFVZNes1_O.find.dat
+
+    --file  Use a pre-computed file of serialised size, inode, [files]
+
+    --link  Checksum files and link duplicates. Default value is 1.
+
+    --verbose
+            Specify for verbose output. Default value is 0.
+
+    --dump  Specify to dump data. Default value is 0.
+
+    --sha   Use shasum after md5sum. This is a "belt and braces approach" due
+            to (admittedly slim possibility) of md5 collisions. Default value
+            is 1.
+
+    --sha   Size of shasum. Default value is 512.
+
+    --help  Prints brief help and exits.
+
+    --man   Prints the manual page and exits.
+
+DESCRIPTION
+    link_duplicate.pl will search through a file system for file above a
+    minimum specified size. The set of all inodes of each file of each size
+    found is computed. If there is more than one inode for each size then each
+    inode of that size has the md5sum computed. Any inodes with duplicate
+    md5sums have their shasum computed if the switch --sha is set. Any inodes
+    with duplicate checksums are then consolidated to one inode and hard links
+    made to the previous names.
+
+    File system integrity is preserved, but the total space is reduced. This
+    is especially useful on back-up disks with multiple copies of large files.
+
+
+
+
+
