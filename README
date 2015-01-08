@@ -45,7 +45,8 @@ OPTIONS
             to (admittedly slim possibility) of md5 collisions. Default value
             is 1.
 
-    --sha   Size of shasum. Default value is 512.
+    --shasize
+            Size of sha digest. Default value is 512.
 
     --help  Prints brief help and exits.
 
