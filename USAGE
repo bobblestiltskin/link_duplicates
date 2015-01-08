@@ -115,3 +115,11 @@ total 12
 -rw-r--r-- 4 bob bob 7 Jan  8 09:50 def
 -rw-r--r-- 2 bob bob 7 Jan  8 09:50 ghi
 bob@bobspc ~/s/p/link_duplicates> 
+
+-------------------------------------------------------------------------------
+If I have an external drive mounted at /mnt/big, I may well invoke the code via
+
+perl link_duplicate.pl --verbose 6 /mnt/big
+
+This would only look at files with size > 10**6 i.e. 1000000 i.e. ~ 1MB and replace any duplicates with hard links.
+Running the command "df" before and after will show the amou nt of disk space reclaimed
