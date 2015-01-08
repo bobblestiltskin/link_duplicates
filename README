@@ -64,7 +64,18 @@ DESCRIPTION
     File system integrity is preserved, but the total space is reduced. This
     is especially useful on back-up disks with multiple copies of large files.
 
+------------------------------------------------------------------------------
 
+A file called makedata.sh is included. Please read it and see what it does 
+before running it.
+It creates files under /tmp/data so that we can see the perl script working.
+Typically work flow is :
 
+sh makedata.sh
+ls -lR /tmp/data
+perl link_duplicates.pl 0 /tmp/data
+ls -lR /tmp/data
 
+do visual comparison of the output of the ls command with particular emphasis
+on how the nlink field changes (nlink being the number of links)
 
