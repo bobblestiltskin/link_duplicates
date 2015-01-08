@@ -16,7 +16,7 @@ This form is used to specify any minimum file size within the given sub-trees.
 
 link_duplicate.pl [options] [0-9] [paths ...]
 
-This form will used 10**[0-9] as the minimum file size to consider in the path.
+This form will use 10**[0-9] as the minimum file size to consider in the path.
 
 Options:
   --minsize   minimum file size to process
