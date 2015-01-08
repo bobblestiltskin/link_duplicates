@@ -265,7 +265,7 @@ Prints the manual page and exits.
 
 =head1 DESCRIPTION
 
-B<link_duplicate.pl> will search through a file system for file above a minimum specified size.
+B<link_duplicate.pl> will search through a file system for files above a minimum specified size.
 The set of all inodes of each file of each size found is computed. 
 If there is more than one inode for each size then each inode of that size has the md5sum computed. 
 Any inodes with duplicate md5sums have their shasum computed if the switch --sha is set. 
