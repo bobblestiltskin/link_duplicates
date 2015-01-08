@@ -19,14 +19,23 @@ link_duplicate.pl [options] [0-9] [paths ...]
 This form will use 10**[0-9] as the minimum file size to consider in the path.
 
 Options:
+
   --minsize   minimum file size to process
+
   --maxsize   maximum file size to process
+
   --verbose   set to give verbose output 
+
   --dump      set to dump file stat hash
+
   --keep      keep the intermediate file (suffix .find.dat in /tmp by default).
+
   --file      a pre-computed file of serialised size, inode, [files]
+
   --link      link duplicates
+
   --sha       use shasum after md5sum (belt and braces approach due to md5 collisions)
+
   --shasize   size of sha digest (defaults to 512).
 
 =cut
