@@ -1,0 +1,81 @@
+A file called makedata.sh is included. Please read it and see what it does 
+before running it.
+It creates files under /tmp/data so that we can see the perl script working.
+Typically work flow is :
+
+sh makedata.sh
+ls -lR /tmp/data
+perl link_duplicate.pl 0 /tmp/data
+ls -lR /tmp/data
+
+do visual comparison of the output of the ls command with particular emphasis
+on how the nlink field changes (nlink being the number of links)
+
+bob@bobspc ~/s/p/link_duplicates> sh makedata.sh
+bob@bobspc ~/s/p/link_duplicates> ls -lR /tmp/data
+/tmp/data:
+total 16
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data1/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data2/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data3/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data4/
+
+/tmp/data/data1:
+total 16
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 ghi
+-rw-r--r-- 1 bob bob 4 Jan  8 09:50 xyz
+
+/tmp/data/data2:
+total 8
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 def
+
+/tmp/data/data3:
+total 12
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 jkl
+
+/tmp/data/data4:
+total 12
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 ghi
+bob@bobspc ~/s/p/link_duplicates> perl link_duplicate.pl 0 /tmp/data
+*** Finding location of files
+*** MINSIZE is 1
+*** Calculating md5sum of files
+bob@bobspc ~/s/p/link_duplicates> ls -lR /tmp/data
+/tmp/data:
+total 16
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data1/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data2/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data3/
+drwxr-xr-x 2 bob bob 4096 Jan  8 09:50 data4/
+
+/tmp/data/data1:
+total 16
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 ghi
+-rw-r--r-- 1 bob bob 4 Jan  8 09:50 xyz
+
+/tmp/data/data2:
+total 8
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 def
+
+/tmp/data/data3:
+total 12
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 1 bob bob 7 Jan  8 09:50 jkl
+
+/tmp/data/data4:
+total 12
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 abc
+-rw-r--r-- 4 bob bob 7 Jan  8 09:50 def
+-rw-r--r-- 2 bob bob 7 Jan  8 09:50 ghi
+bob@bobspc ~/s/p/link_duplicates> 
