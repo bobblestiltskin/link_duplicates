@@ -122,4 +122,4 @@ If I have an external drive mounted at /mnt/big, I may well invoke the code via
 perl link_duplicate.pl --verbose 6 /mnt/big
 
 This would only look at files with size > 10**6 i.e. 1000000 i.e. ~ 1MB and replace any duplicates with hard links.
-Running the command "df" before and after will show the amou nt of disk space reclaimed
+Running the command "df" before and after will show the amount of disk space reclaimed
