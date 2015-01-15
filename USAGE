@@ -9,7 +9,8 @@ perl link_duplicate.pl 0 /tmp/data
 ls -lR /tmp/data
 
 do visual comparison of the output of the ls command with particular emphasis
-on how the nlink field changes (nlink being the number of links)
+on how the nlink field changes (nlink being the number of links - the field is the
+first numeric column in the output for each directory entry)
 
 bob@bobspc ~/s/p/link_duplicates> sh makedata.sh
 bob@bobspc ~/s/p/link_duplicates> ls -lR /tmp/data
