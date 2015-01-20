@@ -1,20 +1,22 @@
 I have a number of backup disks - I buy bigger ones occasionally to back up
-the smaller ones. I have a number of small computers with sdcard storage.
-These are backed up to one of the smaller hard disks, which is backed up to a 
-bigger one. I saw that I was duplicating files on the disk, so I wrote 
-this to reduce the amount of duplication. Multiple copies of the same file on
-the same disk is not safer than having one copy with hard links to the 
-duplicates.
+the smaller ones. I have a number of small computers with SD card storage.
+
+These are backed up to one of the smaller hard disks, which is backed up to
+a bigger one. I saw that I was duplicating files on the disk, so I wrote 
+this to reduce the amount of duplication.
+
+Multiple copies of the same file on the same disk is not safer than having
+one copy with hard links to the duplicates.
 
 All of my current computers are running Debian GNU/Linux. I have not tested
 the code elsewhere. It is written in Perl so ought to work elsewhere...
 
 In brief, the algorithm ensures the following:
 
-Only files which are the same size are considered as duplicates.
-Only files of that size with multiple distinct inodes are considered.
-Only files with duplicated md5sums are considered.
-Only files with duplicated shasums are considered.
+1. Only files which are the same size are considered as duplicates.
+2. Only files of that size with multiple distinct inodes are considered.
+3. Only files with duplicated md5sums are considered.
+4. Only files with duplicated shasums are considered.
 
 These tests are done in this order - which is the computationally cheapest
 first. Any inodes which satisfy all of the conditions are considered
@@ -66,12 +68,6 @@ So, if we run
 
 This will find process all files with size > 10**0 == 1 in /tmp/data
 
-The program runs find down the file tree for the directory chosen for 
-#deduplication.
-We are interested principally in the sizes of the files found (duplicate files 
-MUST be the same size) and secondly with the inode number of the files found. 
-We then store any file names found in a list at this inode.
-
 	*** Finding location of files
 	*** MINSIZE is 1
 	wanted: file - /tmp/data/data2/abc, size - 7, inode - 82215
@@ -86,6 +82,11 @@ We then store any file names found in a list at this inode.
 	wanted: file - /tmp/data/data1/def, size - 7, inode - 82216
 	wanted: file - /tmp/data/data1/ghi, size - 7, inode - 66630
 	wanted: file - /tmp/data/data1/xyz, size - 4, inode - 66631
+
+We are interested principally in the sizes of the files found (duplicate files 
+MUST be the same size) and secondly with the inode number of the files found. 
+We then store any file names found in a list at this inode.
+
 	$VAR1 = {
 	          '7' => {
 	                   '213212' => [
@@ -190,3 +191,5 @@ have been linked appropriately.
 
 I typically run it overnight on a hard disk, and usually see that
 I can reclaim 5 or 10% of the used disk space.
+
+If you use it on a system other than Debian, please let me know!
